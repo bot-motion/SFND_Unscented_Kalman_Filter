@@ -11,7 +11,7 @@ VectorXd testFn(VectorXd &x)
     return x;
 }
 
-void main()
+int main()
 {    
 	VectorXd x_pre;
     x_pre << 1,  1, 1, 0, 0;
