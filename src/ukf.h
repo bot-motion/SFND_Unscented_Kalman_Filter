@@ -95,6 +95,36 @@ class UKF {
 
   // Sigma point spreading parameter
   double lambda_;
+
+  private:
+  
+  void initEstimateLaser(MeasurementPackage measPkg);
+  void initEstimateRadar(MeasurementPackage measPkg);
+
+
+  Eigen::VectorXd augmentState(Eigen::VectorXd &state, int dim);
+  Eigen::MatrixXd augmentCovMatrix(Eigen::MatrixXd &covMatrix, double stdDevAccelNoise, double stdDevYawAccelNoise, int dim);
+  Eigen::MatrixXd augmentSigmaPoints(Eigen::VectorXd &augState, double lambda, Eigen::MatrixXd &L, int dim);
+
+  Eigen::VectorXd predictStateMean(Eigen::MatrixXd &Xsig_pred_);
+  Eigen::MatrixXd predictCovMatrix(const Eigen::VectorXd& state, const Eigen::MatrixXd& covMatrix);
+  Eigen::MatrixXd predictSigmaPoints(Eigen::MatrixXd &Xsig_aug, int n_aug_, double dt);
+ 
+  Eigen::MatrixXd computeCrosscorrelationMatrix(Eigen::MatrixXd &Tc, Eigen::MatrixXd &Z_sig, Eigen::VectorXd &z_pred);
+  Eigen::MatrixXd computeMeasurementCovMatrix(Eigen::MatrixXd &S, Eigen::MatrixXd &Z_sig, Eigen::VectorXd &z_pred);
+  Eigen::VectorXd computeMeanPredictedMeasurement(Eigen::VectorXd &z_pred, Eigen::MatrixXd &Z_sig);
+
+  void updateState(Eigen::MatrixXd &Tc, Eigen::MatrixXd &S, Eigen::VectorXd &z, Eigen::VectorXd &z_pred);
+
+
+  double normalizeAngle(double angle)
+  {
+    while (angle >  M_PI) angle-=2.*M_PI;
+    while (angle < -M_PI) angle+=2.*M_PI;
+    
+    return angle;
+  }
+
 };
 
 #endif  // UKF_H
