@@ -23,10 +23,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  std_a_ = 3.0;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30;
+  std_yawdd_ = 2.0;
   
   /**
    * DO NOT MODIFY measurement noise values below.
@@ -109,30 +109,26 @@ void UKF::initEstimateRadar(MeasurementPackage measPkg)
 
   x_ << x, y, v, 0, 0;
 
-  P_ <<  1, 0, 0, 0, 0,
-         0, 1, 0, 0, 0,
-         0, 0, 1, 0, 0,
-         0, 0, 0, 1, 0,
-         0, 0, 0, 0, 1;    
+  P_ <<  std_radr_ * std_radr_, 0, 0, 0, 0,
+         0, std_radr_ * std_radr_, 0, 0, 0,
+         0, 0, std_radrd_ * std_radrd_, 0, 0,
+         0, 0, 0, std_radrd_ * std_radrd_, 0,
+         0, 0, 0, 0, std_radphi_*std_radphi_;  
+
 }
 
 
 
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) 
 {
+  std::cout << "UKF::ProcessMeasurement " << std::endl;
+
   if (is_initialized_)
   {
     float dt = (meas_package.timestamp_ - time_us_)/1000000.0;
     time_us_ = meas_package.timestamp_;
 
-    try 
-    {
-      Prediction(dt);
-    }
-    catch (exception& e)
-    {
-      std::cout << "Exception during prediction!" << std::endl;
-    }
+    Prediction(dt);
 
     switch (meas_package.sensor_type_)
     {
@@ -179,15 +175,19 @@ void UKF::Prediction(double delta_t)
   x_aug = augmentState(x_, n_aug_);
   P_aug = augmentCovMatrix(P_, std_a_, std_yawdd_, n_aug_);
 
+  //std::cout << x_aug << P_aug; 
+
   L = P_aug.llt().matrixL();
   Xsig_aug = augmentSigmaPoints(x_aug, lambda_, L, n_aug_);
 
   Xsig_pred_ = predictSigmaPoints(Xsig_aug, n_aug_, delta_t);
+  //std::cout << Xsig_aug << Xsig_pred_ << std::endl;
+
 
   x_ = predictStateMean(Xsig_pred_);
-  std::cout << "predicted state x = " << x_ << std::endl << " - - - - - - " << std::endl;
+  //std::cout <<std::endl << "predicted state x = " << std::endl << x_ << std::endl << " - - - - - - " << std::endl;
   P_ = predictCovMatrix(x_, P_);
-  std::cout << "predicted cov matrix = " << P_ << std::endl << " - - - - - - " << std::endl;
+  //std::cout << "predicted cov matrix = " << std::endl << P_ << std::endl << " - - - - - - " << std::endl;
 }
 
 
@@ -195,7 +195,7 @@ void UKF::Prediction(double delta_t)
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) 
 {
-  std::cout << "Update from lidar ... " << std::endl;
+  std::cout << "UKF::UpdateLidar ... " << std::endl;
   VectorXd z = meas_package.raw_measurements_;
 
   // create matrix for sigma points in measurement space
@@ -206,8 +206,6 @@ void UKF::UpdateLidar(MeasurementPackage meas_package)
   {
     double p_x = Xsig_pred_(0,i);
     double p_y = Xsig_pred_(1,i);
-    double v  = Xsig_pred_(2,i);
-    double yaw = Xsig_pred_(3,i);
 
     // apply measurement model for lidar
     Z_sig(0,i) = p_x;                       
@@ -235,27 +233,32 @@ void UKF::UpdateLidar(MeasurementPackage meas_package)
 
 void UKF::UpdateRadar(MeasurementPackage meas_package) 
 {
-  std::cout << "Update from radar ... " << std::endl;
+  std::cout << "UKF::UpdateRadar ... " << std::endl;
   VectorXd z = meas_package.raw_measurements_;
 
   // create matrix for sigma points in measurement space
   MatrixXd Z_sig = MatrixXd(z.size(), 2 * n_aug_ + 1);
 
   // transform sigma points for radar
-  for (int i = 0; i < 2 * n_aug_ + 1; ++i) 
+  const int rho_pos = 0; const int phi_pos = 1; const int r_dot_pos = 2; const int yaw_pos = 3;
+  for (int sigma_point = 0; sigma_point < 2 * n_aug_ + 1; ++sigma_point) 
   {  
-    double p_x = Xsig_pred_(0,i);
-    double p_y = Xsig_pred_(1,i);
-    double v  = Xsig_pred_(2,i);
-    double yaw = Xsig_pred_(3,i);
+    double p_x = Xsig_pred_(rho_pos,   sigma_point);
+    double p_y = Xsig_pred_(phi_pos,   sigma_point);
+    double v   = Xsig_pred_(r_dot_pos, sigma_point);
+    double yaw = Xsig_pred_(yaw_pos,   sigma_point);
 
     double v1 = cos(yaw)*v;
     double v2 = sin(yaw)*v;
 
     // apply measurement model for radar
-    Z_sig(0,i) = sqrt(p_x*p_x + p_y*p_y);                       // r
-    Z_sig(1,i) = atan2(p_y,p_x);                                // phi
-    Z_sig(2,i) = (p_x*v1 + p_y*v2) / sqrt(p_x*p_x + p_y*p_y);   // r_dot
+    Z_sig(rho_pos,  sigma_point) = sqrt(p_x*p_x + p_y*p_y);    
+    Z_sig(phi_pos,  sigma_point) = atan2(p_y,p_x);  
+
+    if (sqrt(p_x*p_x + p_y*p_y) < 0.0001)
+      Z_sig(r_dot_pos,sigma_point) = (p_x*v1 + p_y*v2) / 0.0001;
+    else 
+      Z_sig(r_dot_pos,sigma_point) = (p_x*v1 + p_y*v2) / sqrt(p_x*p_x + p_y*p_y);   
   }
 
   VectorXd z_pred = VectorXd(z.size());
@@ -353,7 +356,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package)
 
       // add noise
       px_p = px_p + 0.5*nu_a*dt*dt * cos(yaw);
-      py_p = py_p + 0.5*nu_a*dt*dt* sin(yaw);
+      py_p = py_p + 0.5*nu_a*dt*dt * sin(yaw);
       v_p = v_p + nu_a*dt;
 
       yaw_p = yaw_p + 0.5*nu_yawdd*dt*dt;
