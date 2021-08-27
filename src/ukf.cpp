@@ -68,6 +68,14 @@ UKF::UKF() {
 	// Weights
 	weights_ = VectorXd(2*n_aug_+1);
 
+  weights_(0) = lambda_/(lambda_+n_aug_);
+  double std_weight = 0.5/(lambda_+n_aug_);
+
+  for (int i = 1; i < 2*n_aug_+1; ++i) 
+  {  
+    weights_(i) = std_weight;
+  }
+
 	// Timestamp
 	time_us_ = 0;
 
@@ -186,8 +194,8 @@ void UKF::Prediction(double delta_t)
 
   x_ = predictStateMean(Xsig_pred_);
   //std::cout <<std::endl << "predicted state x = " << std::endl << x_ << std::endl << " - - - - - - " << std::endl;
-  P_ = predictCovMatrix(x_, P_);
-  //std::cout << "predicted cov matrix = " << std::endl << P_ << std::endl << " - - - - - - " << std::endl;
+  P_ = predictCovMatrix(x_);
+  std::cout << "predicted cov matrix = " << std::endl << P_ << std::endl << " - - - - - - " << std::endl;
 }
 
 
@@ -255,8 +263,8 @@ void UKF::UpdateRadar(MeasurementPackage meas_package)
     Z_sig(rho_pos,  sigma_point) = sqrt(p_x*p_x + p_y*p_y);    
     Z_sig(phi_pos,  sigma_point) = atan2(p_y,p_x);  
 
-    if (sqrt(p_x*p_x + p_y*p_y) < 0.0001)
-      Z_sig(r_dot_pos,sigma_point) = (p_x*v1 + p_y*v2) / 0.0001;
+    if (sqrt(p_x*p_x + p_y*p_y) < 0.00001)
+      Z_sig(r_dot_pos,sigma_point) = (p_x*v1 + p_y*v2) / 0.00001;
     else 
       Z_sig(r_dot_pos,sigma_point) = (p_x*v1 + p_y*v2) / sqrt(p_x*p_x + p_y*p_y);   
   }
@@ -341,7 +349,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package)
       bool predictCurvedMovement = fabs(yawd) > 0.001;
 
       if (predictCurvedMovement) {
-          px_p = p_x + v/yawd * ( sin (yaw + yawd*dt) - sin(yaw));
+          px_p = p_x + v/yawd * ( sin (yaw + yawd*dt) - sin(yaw) );
           py_p = p_y + v/yawd * ( cos(yaw) - cos(yaw+yawd*dt) );
       } 
       else // we're headed on straight line
@@ -386,7 +394,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package)
     return state;
   }
 
-  MatrixXd UKF::predictCovMatrix(const VectorXd& state, const MatrixXd& covMatrix)
+  MatrixXd UKF::predictCovMatrix(const VectorXd& state)
   {
     MatrixXd P_pred = MatrixXd(n_x_, n_x_);;
 
@@ -397,7 +405,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package)
       VectorXd x_diff = Xsig_pred_.col(i) - state;
       x_diff(3) = normalizeAngle(x_diff(3));
 
-      P_pred = covMatrix + weights_(i) * x_diff * x_diff.transpose();
+      P_pred = P_pred + weights_(i) * x_diff * x_diff.transpose();
     }
 
     return P_pred;

@@ -107,7 +107,7 @@ class UKF {
   Eigen::MatrixXd augmentSigmaPoints(Eigen::VectorXd &augState, double lambda, Eigen::MatrixXd &L, int dim);
 
   Eigen::VectorXd predictStateMean(Eigen::MatrixXd &Xsig_pred_);
-  Eigen::MatrixXd predictCovMatrix(const Eigen::VectorXd& state, const Eigen::MatrixXd& covMatrix);
+  Eigen::MatrixXd predictCovMatrix(const Eigen::VectorXd& state);
   Eigen::MatrixXd predictSigmaPoints(Eigen::MatrixXd &Xsig_aug, int n_aug_, double dt);
  
   Eigen::MatrixXd computeCrosscorrelationMatrix(Eigen::MatrixXd &Tc, Eigen::MatrixXd &Z_sig, Eigen::VectorXd &z_pred);
